@@ -1,8 +1,10 @@
 //+------------------------------------------------------------------+
-//|                                           AurumSniper_V13.mq5   |
+//|                                         AurumSniper.mq5     |
 //|                    Copyright 2026, Aurum Capital                 |
+//|      Edición Estándar (XM / Forex / Oro / Índices / Cripto)|
 //|   V13.50 - Institutional Gold Scalper (Capped SL $18 & TP 1.8R)  |
 //+------------------------------------------------------------------+
+#property description "AurumSniper Micro Edition V13.50 optimizado para cuentas Micro MT5"
 // CHANGELOG V13.50:
 //  [V13.50] OPTIMIZACION DE SALIDAS REALISTAS & FILTRO ANTI-NOTICIAS:
 //          - InpRiskReward = 1.8: Target global adaptado a la expansión natural intradía del Oro (+1.8R).
@@ -21,8 +23,9 @@
 #include <Trade\Trade.mqh>
 
 // ==================== INPUTS ====================
-input group "=== GESTION DE RIESGO AVANZADA (V13.50) ==="
-input double   InpLotSize                 = 0.01;
+input group "=== GESTION DE RIESGO AVANZADA (MICRO EDITION V13.50) ==="
+input int      InpMagicNumber             = 777999; // Magic Number específico para cuentas Micro
+input double   InpLotSize                 = 0.01;   // Lote base para cuentas estándar
 input bool     InpUseAutoRiskPercent      = true;
 input double   InpRiskPercent             = 1.0; // Arriesga exactamente el 1.0% del capital
 input double   InpMaxAllowedRiskPercent   = 5.0; // [V13.50] Riesgo Máximo Permitido por Trade (% del capital)
@@ -54,23 +57,24 @@ input int      InpRSIOverbought      = 60;
 input int      InpRSIOversold        = 42;
 input int      InpADXThreshold       = 15;
 
-input group "=== GESTION DE SALIDA ESCALONADA POR FASES (V13.50 M15) ==="
+input group "=== GESTION DE SALIDA ESCALONADA POR FASES (V13.70 M15) ==="
 input double   InpATRMultiplier      = 2.0;
 input bool     InpUsePartials        = true;
-input double   InpPartialPercent     = 60.0;// [V13.50] Porcentaje de Cierre Parcial en Fase 1 (60% del volumen)
-input double   InpRiskReward         = 1.8; // [V13.50] Ratio Riesgo:Beneficio Realista Intradía (1:1.8)
+input double   InpPartialPercent     = 40.0;// [V13.70] Porcentaje de Cierre Parcial en Fase 1 (40% del volumen)
+input double   InpRiskReward         = 2.2; // [V13.70] Ratio Riesgo:Beneficio Realista Intradía (1:2.2)
 input int      InpBE_Trigger         = 150;
 input int      InpBE_LockPips        = 10;
 input bool     InpManageManualTrades = true;
 input bool     InpBlockAutoWhenManualOpen = false; // Bloquear auto si hay manual (false = bot opera independiente)
 input bool     InpAutoSetManualSLTP  = true;
+input bool     InpAllowRangeTrading       = true;  // [V13.70] Permitir compras/ventas en Soporte/Resistencia durante consolidación
 
-input bool     InpUseStepTrailing    = true; // [V13.50] Habilitar Fases (BE 0.8R -> TP Final 1.8R)
-input double   InpStep1_TriggerR     = 0.8;  // [V13.50] Fase 1: Activar Break-Even protegido y 60% Parcial (+0.8R)
-input double   InpStep2_TriggerR     = 1.8;  // [V13.50] Fase 2: TP Final y Liquidación Total (+1.8R)
-input double   InpStep2_LockR        = 1.0;  // [V13.50] Fase 2: Ganancia bloqueada (+1.0R)
-input double   InpStep3_TriggerR     = 2.2;  // [V13.50] Fase 3: Nivel Runner Extendido (+2.2R)
-input double   InpStep3_LockR        = 1.5;  // [V13.50] Fase 3: Ganancia bloqueada (+1.5R)
+input bool     InpUseStepTrailing    = true; // [V13.70] Habilitar Fases (BE 1.3R -> TP 2.2R -> Runner 3.0R)
+input double   InpStep1_TriggerR     = 1.3;  // [V13.70] Fase 1: Activar Break-Even protegido y 40% Parcial (+1.3R)
+input double   InpStep2_TriggerR     = 2.2;  // [V13.70] Fase 2: TP Principal y Asegurar Ganancia (+2.2R)
+input double   InpStep2_LockR        = 1.2;  // [V13.70] Fase 2: Ganancia bloqueada (+1.2R)
+input double   InpStep3_TriggerR     = 3.0;  // [V13.70] Fase 3: Nivel Runner Extendido (+3.0R)
+input double   InpStep3_LockR        = 2.0;  // [V13.70] Fase 3: Ganancia bloqueada (+2.0R)
 input bool     InpCloseOnTP3         = true; // [V12.97] Cerrar 100% de la posición en TP2/TP3
 input bool     InpStepRunnerAbove3R  = false;// [V12.9] Runner infinito sobre 3.0R (solo si InpCloseOnTP3 = false)
 
@@ -203,19 +207,18 @@ void AutoTuneAssets() {
          g_max_spread = 75;
          g_distancia_puntos = (_Period >= PERIOD_M15) ? 900 : 700; // [V13.50] Adaptativo M15/M5
          g_be_trigger = (_Period >= PERIOD_M15) ? 900 : 700;
-         g_adx_threshold = 20; g_atr_multiplier = 2.0;
-         g_risk_reward = 1.8; // [V13.50] Target realista de sesión (+1.8R)
-         g_step1_trigger_r = 0.8; // [V13.50] Sweet Spot +0.8R (captura el 60% de los giros)
-         g_step2_trigger_r = 1.8;
-         g_step2_lock_r    = 1.0;
-         g_step3_trigger_r = 2.2;
-         g_step3_lock_r    = 1.5;
-         g_partial_percent = 60.0;
-         g_rsi_oversold = 38; g_rsi_overbought = 62;
+         g_adx_threshold = 20; g_atr_multiplier = 2.0; g_risk_reward = InpRiskReward; // [V13.70] Ratio positivo (1:2.2)
+         g_step1_trigger_r = InpStep1_TriggerR; // [V13.70] +1.3R para dar holgura al impulso
+         g_step2_trigger_r = InpStep2_TriggerR; // [V13.70] +2.2R
+         g_step2_lock_r    = InpStep2_LockR;    // [V13.70] +1.2R
+         g_step3_trigger_r = InpStep3_TriggerR; // [V13.70] +3.0R
+         g_step3_lock_r    = InpStep3_LockR;    // [V13.70] +2.0R
+         g_partial_percent = InpPartialPercent; // [V13.70] 40.0%
+         g_rsi_oversold = 42; g_rsi_overbought = 58;
          g_momentum_spike_multiplier = 4.5;
          g_min_sl_price = MathMax(InpGoldMinSL, (_Period >= PERIOD_M15 ? 10.0 : 8.0)); // [V13.50]
          g_max_sl_price = (InpGoldMaxSL > 0) ? InpGoldMaxSL : (_Period >= PERIOD_M15 ? 18.0 : 15.0); // [V13.50]
-         PrintFormat("AURUM GOLD & MICRO-GOLD MODE V13.50 ACTIVE (%s): ATR x2.0, R:R 1:%.1f, Fases (BE %.1fR -> TP %.1fR), SL [$%.2f - $%.2f], Parcial %.0f%%",
+         PrintFormat("AURUM GOLD & MICRO-GOLD MODE V13.70 ACTIVE (%s): ATR x2.0, R:R 1:%.1f, Fases (BE %.1fR -> TP %.1fR), SL [$%.2f - $%.2f], Parcial %.0f%%",
                      EnumToString(_Period), g_risk_reward, g_step1_trigger_r, g_step2_trigger_r, g_min_sl_price, g_max_sl_price, g_partial_percent);
       }
    }
@@ -411,7 +414,7 @@ int OnInit() {
    }
 
    EventSetTimer(1);
-   Print("AURUM V13.50 ULTIMATE PRO Loaded.");
+   Print("AURUM SNIPER MICRO V13.50 ULTIMATE PRO Loaded.");
    return(INIT_SUCCEEDED);
 }
 
@@ -609,13 +612,17 @@ bool IsTradingSession(string &session_reason) {
    return true;
 }
 
-// [OPT #4 & V12.6] Cooldown Inteligente
+// [OPT #4 & V13.70] Cooldown Inteligente con Anti-Cascade
 bool CheckCooldownPass() {
    if(InpCooldownBars <= 0) return true;
    if(g_last_trade_close == 0) return true;
    int wait_bars = InpCooldownBars;
    if(InpSmartCooldown && g_last_trade_profit >= 0) {
       wait_bars = 1; // Si cerro en ganancia/BE, solo espera 1 barra de confirmacion
+   } else if(g_last_trade_profit < -0.01) {
+      // [V13.70] Cooldown estricto tras pérdida: mínimo 15 minutos (900 seg) para evitar ráfagas
+      wait_bars = MathMax(InpCooldownBars, 2);
+      if(TimeCurrent() - g_last_trade_close < 900) return false;
    }
    return (TimeCurrent() - g_last_trade_close >= wait_bars * PeriodSeconds(_Period));
 }
@@ -631,18 +638,18 @@ bool IsInDiscountPremiumZone(string type) {
    if(range <= 0) return true;
    
    double cur_price = (type == "BUY") ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   // [V12.9] Equilibrio dinámico adaptativo con ADX
+   // [V13.70] Equilibrio dinámico adaptativo con ADX (Permite compras de continuación)
    double eq_pct = InpEquilibriumPercent; // Base: 50%
    double adx = g_adx_cache;
    if(adx >= 25.0) {
-      // En tendencia moderada (ADX>=25): flexibilizar 10%
-      if(type == "BUY")  eq_pct = MathMin(eq_pct + 10.0, 60.0);
-      if(type == "SELL") eq_pct = MathMax(eq_pct - 10.0, 40.0);
+      // En tendencia moderada (ADX>=25): flexibilizar 12%
+      if(type == "BUY")  eq_pct = MathMin(eq_pct + 12.0, 62.0);
+      if(type == "SELL") eq_pct = MathMax(eq_pct - 12.0, 38.0);
    }
    if(adx >= 35.0) {
-      // En tendencia fuerte/parabólica (ADX>=35): flexibilizar 15% para compras/ventas de continuación
-      if(type == "BUY")  eq_pct = MathMin(eq_pct + 5.0, 65.0);
-      if(type == "SELL") eq_pct = MathMax(eq_pct - 5.0, 35.0);
+      // En tendencia fuerte/parabólica (ADX>=35): permitir hasta 70% para compras y 30% para ventas
+      if(type == "BUY")  eq_pct = MathMin(eq_pct + 8.0, 70.0);
+      if(type == "SELL") eq_pct = MathMax(eq_pct - 8.0, 30.0);
    }
    double eq_price = h1_low + (range * (eq_pct / 100.0));
    
@@ -827,6 +834,15 @@ void OnTick() {
       trend_bear = trend_bear && htf_bear;
    }
 
+   // [V13.70] Modo Rebote en Rango (Lateral S/R Mean Reversion)
+   // Si el mercado no tiene tendencia direccional clara pero está en rango con baja volatilidad (ADX < 25)
+   bool range_bull = false;
+   bool range_bear = false;
+   if(!trend_bull && !trend_bear && InpAllowRangeTrading && adx < 25.0) {
+      range_bull = true; // Permite compra si está en zona de Descuento extrema + mecha de absorción M1
+      range_bear = true; // Permite venta si está en zona Premium extrema + mecha de rechazo M1
+   }
+
    bool in_zone_buy  = IsInZone("BUY",  ma_h1, adx, atr);
    bool in_zone_sell = IsInZone("SELL", ma_h1, adx, atr);
    bool is_trap_buy  = InpUseLiquidityTraps ? CheckLiquidityTrap("BUY")  : false;
@@ -838,18 +854,18 @@ void OnTick() {
    bool buy_zone_ok  = (in_zone_buy  || is_trap_buy)  && discount_buy_ok;
    bool sell_zone_ok = (in_zone_sell || is_trap_sell) && discount_sell_ok;
 
-   // [V12.7] RSI Adaptativo: En tendencia fuerte, relajar umbrales progresivamente
-   double eff_rsi_oversold   = g_rsi_oversold;    // Base: 38 (Gold)
-   double eff_rsi_overbought = g_rsi_overbought;  // Base: 62 (Gold)
+   // [V13.70] RSI Adaptativo en Pullback de Tendencia:
+   // En tendencia alcista fuerte, el pullback suele soportarse en RSI 45 - 52 (no en < 38).
+   // Relajamos progresivamente para no rechazar compras de tendencia sanas.
+   double eff_rsi_oversold   = trend_bull ? 48.0 : g_rsi_oversold;
+   double eff_rsi_overbought = trend_bear ? 52.0 : g_rsi_overbought;
    if(adx >= 25.0) {
-      // Tendencia moderada: relajar 4 pts (42/58 para Gold)
-      eff_rsi_oversold   += 4.0;
-      eff_rsi_overbought -= 4.0;
+      if(trend_bull) eff_rsi_oversold   += 4.0; // Hasta 52.0 en tendencia moderada
+      if(trend_bear) eff_rsi_overbought -= 4.0; // Hasta 48.0 en tendencia moderada
    }
    if(adx >= 35.0) {
-      // Tendencia fuerte: relajar 3 pts más (45/55 para Gold)
-      eff_rsi_oversold   += 3.0;
-      eff_rsi_overbought -= 3.0;
+      if(trend_bull) eff_rsi_oversold   += 3.0; // Hasta 55.0 en tendencia fuerte
+      if(trend_bear) eff_rsi_overbought -= 3.0; // Hasta 45.0 en tendencia fuerte
    }
 
    double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
@@ -887,12 +903,12 @@ void OnTick() {
    bool is_spike_buy  = buy_zone_ok  ? IsMomentumSpike("BUY")  : false;
    bool is_spike_sell = sell_zone_ok ? IsMomentumSpike("SELL") : false;
 
-   DebugSignalMiss("BUY",  trend_bull, buy_zone_ok,  rsi, adx, is_spike_buy,
+   DebugSignalMiss("BUY",  (trend_bull || (range_bull && is_trap_buy)), buy_zone_ok,  rsi, adx, is_spike_buy,
                    has_open_trade, good_spread, daily_limit_reached,
                    eff_rsi_oversold, eff_rsi_overbought, cooldown_ok, session_ok, discount_buy_ok,
                    usd_corr_blocked_buy, conflict_sym_buy, session_reason, micro_buy_ok, micro_reason_buy,
                    pa_buy_ok, pa_reason_buy);
-   DebugSignalMiss("SELL", trend_bear, sell_zone_ok, rsi, adx, is_spike_sell,
+   DebugSignalMiss("SELL", (trend_bear || (range_bear && is_trap_sell)), sell_zone_ok, rsi, adx, is_spike_sell,
                    has_open_trade, good_spread, daily_limit_reached,
                    eff_rsi_oversold, eff_rsi_overbought, cooldown_ok, session_ok, discount_sell_ok,
                    usd_corr_blocked_sell, conflict_sym_sell, session_reason, micro_sell_ok, micro_reason_sell,
@@ -922,10 +938,15 @@ void OnTick() {
       return;
    }
 
-   // [V13.50] Filtro Anti-Noticias por Volatilidad Extrema (ATR)
+   // [V13.70] Filtro Anti-Noticias por Volatilidad Extrema Multi-Activo (ATR y Vela Anómala)
    bool is_news_volatility = (g_gold_mode_active && InpMaxAllowedATR > 0 && atr > InpMaxAllowedATR);
+   if(!is_news_volatility && atr > 0) {
+      double bar1_range = iHigh(_Symbol, _Period, 1) - iLow(_Symbol, _Period, 1);
+      if(bar1_range > atr * 2.8) is_news_volatility = true; // Vela de impacto macro anómala
+   }
 
-   if(trend_bull && buy_zone_ok && rsi < eff_rsi_oversold && adx > g_adx_threshold && !is_spike_buy && !usd_corr_blocked_buy && micro_buy_ok && pa_buy_ok && !is_news_volatility) {
+   bool can_buy = (trend_bull || (range_bull && is_trap_buy)) && buy_zone_ok && (rsi < eff_rsi_oversold) && (adx > g_adx_threshold) && !is_spike_buy && !usd_corr_blocked_buy && micro_buy_ok && pa_buy_ok && !is_news_volatility;
+   if(can_buy) {
       // [V13.50] SL acotado entre mínimo ($10) y techo máximo ($18) para ratios óptimos
       double sl_dist = MathMax(atr * g_atr_multiplier, g_min_sl_price);
       if(g_max_sl_price > 0 && sl_dist > g_max_sl_price) sl_dist = g_max_sl_price;
@@ -938,14 +959,15 @@ void OnTick() {
       if(trade_lot > 0) {
          if(trade.Buy(trade_lot, _Symbol, ask, sl, tp, "Aurum V13 Sniper")) {
             g_daily_trades++;
-            PrintFormat("[COMPRA] Lote:%.2f SL:%.2f TP:%.2f | Riesgo: -$%.2f (%.1f%%) | SL_dist:$%.2f (%.0f pts) | ATR:%.2f | R:R 1:%.1f%s%s",
-                        trade_lot, sl, tp, actual_risk_usd, actual_risk_pct, sl_dist, sl_dist/_Point, atr, g_risk_reward,
+            PrintFormat("[COMPRA%s] Lote:%.2f SL:%.2f TP:%.2f | Riesgo: -$%.2f (%.1f%%) | SL_dist:$%.2f (%.0f pts) | ATR:%.2f | R:R 1:%.1f%s%s",
+                        (trend_bull ? "" : " RANGO"), trade_lot, sl, tp, actual_risk_usd, actual_risk_pct, sl_dist, sl_dist/_Point, atr, g_risk_reward,
                         (InpUseMicroTrigger ? " [M1-TRIGGER OK]" : ""),
                         (g_consecutive_losses >= 2 ? " [ANTI-CASCADE]": ""));
          }
       }
    }
-   if(trend_bear && sell_zone_ok && rsi > eff_rsi_overbought && adx > g_adx_threshold && !is_spike_sell && !usd_corr_blocked_sell && micro_sell_ok && pa_sell_ok && !is_news_volatility) {
+   bool can_sell = (trend_bear || (range_bear && is_trap_sell)) && sell_zone_ok && (rsi > eff_rsi_overbought) && (adx > g_adx_threshold) && !is_spike_sell && !usd_corr_blocked_sell && micro_sell_ok && pa_sell_ok && !is_news_volatility;
+   if(can_sell) {
       // [V13.50] SL acotado entre mínimo ($10) y techo máximo ($18)
       double sl_dist = MathMax(atr * g_atr_multiplier, g_min_sl_price);
       if(g_max_sl_price > 0 && sl_dist > g_max_sl_price) sl_dist = g_max_sl_price;
@@ -958,8 +980,8 @@ void OnTick() {
       if(trade_lot > 0) {
          if(trade.Sell(trade_lot, _Symbol, bid, sl, tp, "Aurum V13 Sniper")) {
             g_daily_trades++;
-            PrintFormat("[VENTA] Lote:%.2f SL:%.2f TP:%.2f | Riesgo: -$%.2f (%.1f%%) | SL_dist:$%.2f (%.0f pts) | ATR:%.2f | R:R 1:%.1f%s%s",
-                        trade_lot, sl, tp, actual_risk_usd, actual_risk_pct, sl_dist, sl_dist/_Point, atr, g_risk_reward,
+            PrintFormat("[VENTA%s] Lote:%.2f SL:%.2f TP:%.2f | Riesgo: -$%.2f (%.1f%%) | SL_dist:$%.2f (%.0f pts) | ATR:%.2f | R:R 1:%.1f%s%s",
+                        (trend_bear ? "" : " RANGO"), trade_lot, sl, tp, actual_risk_usd, actual_risk_pct, sl_dist, sl_dist/_Point, atr, g_risk_reward,
                         (InpUseMicroTrigger ? " [M1-TRIGGER OK]" : ""),
                         (g_consecutive_losses >= 2 ? " [ANTI-CASCADE]": ""));
          }
@@ -1043,38 +1065,10 @@ void GestionarPosicionesPro() {
       string pos_sym = PositionGetString(POSITION_SYMBOL);
       bool is_current_symbol = (pos_sym == _Symbol);
 
-      // [V12.99] Protección Multidivisa de Trades Manuales:
-      // Si el trade manual se abrió en otro activo (ej. USDJPY) mientras el bot está en GOLD
-      if(!is_current_symbol) {
-         if(pos_magic == MAGIC_NUMBER) continue; // Posiciones automáticas de otro chart las maneja su instancia
-         if(InpAutoSetManualSLTP) {
-            double pos_sl = PositionGetDouble(POSITION_SL);
-            double pos_tp = PositionGetDouble(POSITION_TP);
-            if(pos_sl == 0 || pos_tp == 0) {
-               double pos_entry = PositionGetDouble(POSITION_PRICE_OPEN);
-               long pos_type = PositionGetInteger(POSITION_TYPE);
-               int pos_digits = (int)SymbolInfoInteger(pos_sym, SYMBOL_DIGITS);
-               double pos_point = SymbolInfoDouble(pos_sym, SYMBOL_POINT);
-               double tp_mult = 3.0;
-               double sl_dist_manual = GetManualAssetSLDist(pos_sym, tp_mult);
-               double tp_dist_manual = sl_dist_manual * tp_mult;
-
-               double new_sl = pos_sl;
-               double new_tp = pos_tp;
-               if(pos_type == POSITION_TYPE_BUY) {
-                  if(new_sl == 0) new_sl = NormalizeDouble(pos_entry - sl_dist_manual, pos_digits);
-                  if(new_tp == 0) new_tp = NormalizeDouble(pos_entry + tp_dist_manual, pos_digits);
-               } else if(pos_type == POSITION_TYPE_SELL) {
-                  if(new_sl == 0) new_sl = NormalizeDouble(pos_entry + sl_dist_manual, pos_digits);
-                  if(new_tp == 0) new_tp = NormalizeDouble(pos_entry - tp_dist_manual, pos_digits);
-               }
-               if(trade.PositionModify(ticket, new_sl, new_tp)) {
-                  PrintFormat("[AUTO-SL/TP MULTIDIVISA] Ticket %d %s | SL=%s TP=%s", ticket, pos_sym, DoubleToString(new_sl, pos_digits), DoubleToString(new_tp, pos_digits));
-               }
-            }
-         }
-         continue;
-      }
+      // [V13.70] Aislamiento Estricto por Símbolo:
+      // Cada instancia de EA gestiona ÚNICAMENTE las posiciones de su propio gráfico (_Symbol).
+      // Evita colisiones de SL/TP y que un chart de Forex sobreescriba el SL del Oro.
+      if(!is_current_symbol) continue;
 
       double entry     = PositionGetDouble(POSITION_PRICE_OPEN);
       double sl        = PositionGetDouble(POSITION_SL);
@@ -1448,7 +1442,7 @@ void UpdateDashboard() {
    string trend_txt = (price > ma) ? "ALCISTA (Busca BUY)" : "BAJISTA (Busca SELL)";
    color trend_clr = (price > ma) ? clrLime : clrRed;
    int y = 20;
-   DrawLabel("lbl_Title", "AURUM SNIPER V13.50 (PRO)", 20, y, clrGold, 12); y += 22;
+   DrawLabel("lbl_Title", "AURUM SNIPER MICRO V13.50 (PRO)", 20, y, clrGold, 12); y += 22;
    long sym_trade_mode = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_MODE);
    bool sym_enabled  = (sym_trade_mode != SYMBOL_TRADE_MODE_DISABLED);
    bool algo_allowed = sym_enabled && TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) &&
