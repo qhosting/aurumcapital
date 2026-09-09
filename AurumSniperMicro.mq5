@@ -92,6 +92,7 @@ input int      InpSessionStartHourCDMX     = 1;    // Hora Inicio CDMX (01:00 AM
 input int      InpSessionStartMinCDMX      = 15;   // Minuto Inicio CDMX (01:15 AM - Evita Rollover de Broker)
 input int      InpSessionEndHourCDMX       = 12;   // Hora Cierre CDMX (12:00 PM - Fin Golden Overlap)
 input bool     InpSessionFilterForexOnly   = true; // Aplicar a Forex, Metales e Índices (Cripto 24/7 libre)
+input bool     InpCryptoAvoidWeekendChop   = true; // [V13.80] Bloquear Domingo en Cripto (Evita trampas de baja liquidez y bull traps de fin de semana)
 input bool     InpUseFridayFilter          = true; // [V12.96] Filtro Especial de Viernes (Horario CDMX)
 input int      InpFridayStartHourCDMX      = 1;    // Hora Inicio Viernes CDMX (01:00 AM)
 input int      InpFridayEndHourCDMX        = 11;   // Hora Límite Viernes CDMX (11:00 AM)
@@ -247,19 +248,19 @@ void AutoTuneAssets() {
    if(InpAutoCryptoSettings) {
       string symbol = _Symbol; StringToUpper(symbol);
       if(StringFind(symbol,"BTC") >= 0 || StringFind(symbol,"BITCOIN") >= 0) {
-         g_max_spread = 6000; g_distancia_puntos = 3000; g_be_trigger = 2500;
-         g_adx_threshold = 15; g_atr_multiplier = 2.0; g_risk_reward = InpRiskReward;
+         g_max_spread = 6000; g_distancia_puntos = 3000; g_be_trigger = 3500;
+         g_adx_threshold = 18; g_atr_multiplier = 2.8; g_risk_reward = InpRiskReward;
          g_rsi_oversold = 40; g_rsi_overbought = 60;
          g_momentum_spike_multiplier = 4.0;
-         g_min_sl_price = 100.0; // Minimo $100 USD en BTC
-         Print("AURUM CRYPTO V12.97 ACTIVE: BTC (Spread Max: 6000, Dist: 3000, RR 1:", DoubleToString(g_risk_reward,1), ", SL min: $100)");
+         g_min_sl_price = 500.0; // [V13.80] Minimo $500 USD de SL en BTC para holgura de ruido M15
+         Print("AURUM CRYPTO V13.80 ACTIVE: BTC (Spread Max: 6000, Dist: 3000, RR 1:", DoubleToString(g_risk_reward,1), ", SL min: $500, ATR Mult: 2.8)");
       } else if(StringFind(symbol,"ETH") >= 0 || StringFind(symbol,"ETHEREUM") >= 0) {
-         g_max_spread = 3000; g_distancia_puntos = 1500; g_be_trigger = 1200;
-         g_adx_threshold = 15; g_atr_multiplier = 2.0; g_risk_reward = InpRiskReward;
+         g_max_spread = 3000; g_distancia_puntos = 1500; g_be_trigger = 1800;
+         g_adx_threshold = 18; g_atr_multiplier = 2.8; g_risk_reward = InpRiskReward;
          g_rsi_oversold = 40; g_rsi_overbought = 60;
          g_momentum_spike_multiplier = 4.0;
-         g_min_sl_price = 10.0; // Minimo $10 USD en ETH
-         Print("AURUM CRYPTO V12.97 ACTIVE: ETH (Spread Max: 3000, Dist: 1500, RR 1:", DoubleToString(g_risk_reward,1), ", SL min: $10)");
+         g_min_sl_price = 40.0; // [V13.80] Minimo $40 USD de SL en ETH
+         Print("AURUM CRYPTO V13.80 ACTIVE: ETH (Spread Max: 3000, Dist: 1500, RR 1:", DoubleToString(g_risk_reward,1), ", SL min: $40, ATR Mult: 2.8)");
       }
    }
    if(InpAutoIndexSettings) {
@@ -346,6 +347,346 @@ void MarkPartialClosed(ulong ticket) {
 //+------------------------------------------------------------------+
 //| Initialization                                                   |
 //+------------------------------------------------------------------+
+
+//+------------------------------------------------------------------+
+//| === INSTITUTIONAL SMART MONEY CONCEPTS (SMC) & ORDER BLOCKS ===   |
+//| Based on SMC.txt (LuxAlgo Pro) & OB.txt (VEGA OB / Breakers)      |
+//+------------------------------------------------------------------+
+input group "=== INSTITUTIONAL SMART MONEY CONCEPTS (V14.0 BETA) ==="
+input bool     InpUseSMCStructures         = true;  // Activar Motor SMC (BOS, CHoCH, OB, Breakers)
+input int      InpSwingLength              = 5;     // Longitud de Swing High/Low (VEGA OB)
+input bool     InpUseOrderBlocks           = true;  // Confluencia en Order Blocks (OB)
+input bool     InpUseBreakerBlocks         = true;  // Confluencia en Breaker Blocks (Inversion de Polaridad)
+input bool     InpUseFVGFilter             = true;  // Confluencia en Fair Value Gaps (FVG)
+input bool     InpUseLiquiditySweeps       = true;  // Cazas de Liquidez (Equal Highs/Lows Sweeps)
+input bool     InpDrawSMCVisuals           = true;  // Dibujar Zonas SMC en el grafico de MT5
+input int      InpMaxSMCBoxes              = 8;     // Maximo de Cajas SMC simultaneas en grafico
+input color    InpBullOBColor              = C'20,60,50'; // Color Bullish OB / FVG
+input color    InpBearOBColor              = C'70,25,35'; // Color Bearish OB / FVG
+input color    InpBreakerColor             = C'25,45,75'; // Color Breaker Block
+
+// Estructuras de Datos Institucionales
+struct SOrderBlock {
+   double   top;
+   double   bottom;
+   datetime time;
+   int      bar_index;
+   bool     is_bullish;
+   bool     is_breaker;
+   bool     was_originally_bullish;
+   bool     is_mitigated;
+   string   box_name;
+};
+
+struct SFairValueGap {
+   double   top;
+   double   bottom;
+   datetime time;
+   bool     is_bullish;
+   bool     is_mitigated;
+   string   box_name;
+};
+
+// Variables Globales del Motor SMC
+SOrderBlock    g_order_blocks[20];
+int            g_total_obs = 0;
+SFairValueGap  g_fvgs[20];
+int            g_total_fvgs = 0;
+
+double         g_last_swing_high = 0;
+double         g_last_swing_low  = 0;
+datetime       g_last_swing_high_time = 0;
+datetime       g_last_swing_low_time  = 0;
+int            g_last_swing_high_bar  = 0;
+int            g_last_swing_low_bar   = 0;
+bool           g_swing_high_breached  = false;
+bool           g_swing_low_breached   = false;
+int            g_market_structure_trend = 0; // 1 = Bullish, -1 = Bearish
+
+bool           g_smc_liquidity_sweep_buy  = false;
+bool           g_smc_liquidity_sweep_sell = false;
+
+//+------------------------------------------------------------------+
+//| Deteccion de Swing High (Pivots)                                 |
+//+------------------------------------------------------------------+
+bool IsSwingHighBar(int bar, int length) {
+   double target = iHigh(_Symbol, _Period, bar);
+   for(int i = 1; i <= length; i++) {
+      if(iHigh(_Symbol, _Period, bar + i) >= target) return false;
+      if(iHigh(_Symbol, _Period, bar - i) >= target) return false;
+   }
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| Deteccion de Swing Low (Pivots)                                  |
+//+------------------------------------------------------------------+
+bool IsSwingLowBar(int bar, int length) {
+   double target = iLow(_Symbol, _Period, bar);
+   for(int i = 1; i <= length; i++) {
+      if(iLow(_Symbol, _Period, bar + i) <= target) return false;
+      if(iLow(_Symbol, _Period, bar - i) <= target) return false;
+   }
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| Limpieza de Objetos Graficos SMC                                 |
+//+------------------------------------------------------------------+
+void CleanSMCVisuals() {
+   ObjectsDeleteAll(0, "smc_ob_");
+   ObjectsDeleteAll(0, "smc_brk_");
+   ObjectsDeleteAll(0, "smc_fvg_");
+   ObjectsDeleteAll(0, "smc_swp_");
+}
+
+//+------------------------------------------------------------------+
+//| Dibujar Rectangulo SMC en el Grafico                             |
+//+------------------------------------------------------------------+
+void DrawSMCBox(string name, datetime t1, double p1, datetime t2, double p2, color clr, string tip) {
+   if(!InpDrawSMCVisuals) return;
+   ObjectDelete(0, name);
+   if(ObjectCreate(0, name, OBJ_RECTANGLE, 0, t1, p1, t2, p2)) {
+      ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
+      ObjectSetInteger(0, name, OBJPROP_BGCOLOR, clr);
+      ObjectSetInteger(0, name, OBJPROP_FILL, true);
+      ObjectSetInteger(0, name, OBJPROP_BACK, true);
+      ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+      ObjectSetString(0, name, OBJPROP_TOOLTIP, tip);
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Actualizacion Integral del Motor SMC (BOS, CHoCH, OB, Breakers)  |
+//+------------------------------------------------------------------+
+void UpdateSMCStructures() {
+   if(!InpUseSMCStructures) return;
+   
+   int scan_bars = 60;
+   int length = MathMax(InpSwingLength, 3);
+   
+   // 1. Detectar Pivots Recientes
+   for(int i = length + 1; i <= scan_bars; i++) {
+      if(IsSwingHighBar(i, length)) {
+         double sh = iHigh(_Symbol, _Period, i);
+         datetime st = iTime(_Symbol, _Period, i);
+         if(st > g_last_swing_high_time) {
+            g_last_swing_high = sh;
+            g_last_swing_high_time = st;
+            g_last_swing_high_bar = i;
+            g_swing_high_breached = false;
+         }
+         break;
+      }
+   }
+   for(int i = length + 1; i <= scan_bars; i++) {
+      if(IsSwingLowBar(i, length)) {
+         double sl = iLow(_Symbol, _Period, i);
+         datetime st = iTime(_Symbol, _Period, i);
+         if(st > g_last_swing_low_time) {
+            g_last_swing_low = sl;
+            g_last_swing_low_time = st;
+            g_last_swing_low_bar = i;
+            g_swing_low_breached = false;
+         }
+         break;
+      }
+   }
+   
+   double close1 = iClose(_Symbol, _Period, 1);
+   double high1  = iHigh(_Symbol, _Period, 1);
+   double low1   = iLow(_Symbol, _Period, 1);
+   
+   // 2. Ruptura de Estructura (BOS vs CHoCH) y Registro de Order Blocks (OB.txt)
+   if(g_last_swing_high > 0 && !g_swing_high_breached && close1 > g_last_swing_high) {
+      g_swing_high_breached = true;
+      int prev_trend = g_market_structure_trend;
+      g_market_structure_trend = 1; // Bullish
+      
+      // Buscar la ultima vela bajista antes de la ruptura (Bullish OB)
+      for(int k = 1; k <= 30; k++) {
+         double op_k = iOpen(_Symbol, _Period, k);
+         double cl_k = iClose(_Symbol, _Period, k);
+         if(cl_k < op_k) { // Ultima vela bajista
+            if(g_total_obs < 20) {
+               g_order_blocks[g_total_obs].top = iHigh(_Symbol, _Period, k);
+               g_order_blocks[g_total_obs].bottom = iLow(_Symbol, _Period, k);
+               g_order_blocks[g_total_obs].time = iTime(_Symbol, _Period, k);
+               g_order_blocks[g_total_obs].bar_index = k;
+               g_order_blocks[g_total_obs].is_bullish = true;
+               g_order_blocks[g_total_obs].is_breaker = false;
+               g_order_blocks[g_total_obs].was_originally_bullish = true;
+               g_order_blocks[g_total_obs].is_mitigated = false;
+               g_order_blocks[g_total_obs].box_name = "smc_ob_" + IntegerToString(g_total_obs);
+               g_total_obs++;
+            }
+            break;
+         }
+      }
+   }
+   
+   if(g_last_swing_low > 0 && !g_swing_low_breached && close1 < g_last_swing_low) {
+      g_swing_low_breached = true;
+      int prev_trend = g_market_structure_trend;
+      g_market_structure_trend = -1; // Bearish
+      
+      // Buscar la ultima vela alcista antes de la ruptura (Bearish OB)
+      for(int k = 1; k <= 30; k++) {
+         double op_k = iOpen(_Symbol, _Period, k);
+         double cl_k = iClose(_Symbol, _Period, k);
+         if(cl_k > op_k) { // Ultima vela alcista
+            if(g_total_obs < 20) {
+               g_order_blocks[g_total_obs].top = iHigh(_Symbol, _Period, k);
+               g_order_blocks[g_total_obs].bottom = iLow(_Symbol, _Period, k);
+               g_order_blocks[g_total_obs].time = iTime(_Symbol, _Period, k);
+               g_order_blocks[g_total_obs].bar_index = k;
+               g_order_blocks[g_total_obs].is_bullish = false;
+               g_order_blocks[g_total_obs].is_breaker = false;
+               g_order_blocks[g_total_obs].was_originally_bullish = false;
+               g_order_blocks[g_total_obs].is_mitigated = false;
+               g_order_blocks[g_total_obs].box_name = "smc_ob_" + IntegerToString(g_total_obs);
+               g_total_obs++;
+            }
+            break;
+         }
+      }
+   }
+   
+   // 3. Breaker Blocks (Inversion de Polaridad - Motor OB.txt) & Mitigacion
+   datetime now_t = TimeCurrent() + PeriodSeconds() * 15;
+   for(int b = 0; b < g_total_obs; b++) {
+      if(!g_order_blocks[b].is_breaker) {
+         // Si un Bullish OB es perforado a la baja con cierre -> muta a Bearish Breaker
+         if(g_order_blocks[b].is_bullish && close1 < g_order_blocks[b].bottom) {
+            g_order_blocks[b].is_breaker = true;
+            g_order_blocks[b].is_bullish = false; // Ahora actua como resistencia bajista
+            g_order_blocks[b].box_name = "smc_brk_" + IntegerToString(b);
+         }
+         // Si un Bearish OB es perforado al alza con cierre -> muta a Bullish Breaker
+         else if(!g_order_blocks[b].is_bullish && close1 > g_order_blocks[b].top) {
+            g_order_blocks[b].is_breaker = true;
+            g_order_blocks[b].is_bullish = true; // Ahora actua como soporte alcista
+            g_order_blocks[b].box_name = "smc_brk_" + IntegerToString(b);
+         }
+      }
+   }
+   
+   // 4. Deteccion de Fair Value Gaps (FVG de 3 velas - Motor SMC.txt)
+   double h3 = iHigh(_Symbol, _Period, 3);
+   double l1 = iLow(_Symbol,  _Period, 1);
+   double l3 = iLow(_Symbol,  _Period, 3);
+   double h1 = iHigh(_Symbol, _Period, 1);
+   
+   // Bullish FVG: low de vela 1 > high de vela 3
+   if(l1 > h3) {
+      if(g_total_fvgs < 20) {
+         g_fvgs[g_total_fvgs].top = l1;
+         g_fvgs[g_total_fvgs].bottom = h3;
+         g_fvgs[g_total_fvgs].time = iTime(_Symbol, _Period, 2);
+         g_fvgs[g_total_fvgs].is_bullish = true;
+         g_fvgs[g_total_fvgs].is_mitigated = false;
+         g_fvgs[g_total_fvgs].box_name = "smc_fvg_" + IntegerToString(g_total_fvgs);
+         g_total_fvgs++;
+      }
+   }
+   // Bearish FVG: high de vela 1 < low de vela 3
+   if(h1 < l3) {
+      if(g_total_fvgs < 20) {
+         g_fvgs[g_total_fvgs].top = l3;
+         g_fvgs[g_total_fvgs].bottom = h1;
+         g_fvgs[g_total_fvgs].time = iTime(_Symbol, _Period, 2);
+         g_fvgs[g_total_fvgs].is_bullish = false;
+         g_fvgs[g_total_fvgs].is_mitigated = false;
+         g_fvgs[g_total_fvgs].box_name = "smc_fvg_" + IntegerToString(g_total_fvgs);
+         g_total_fvgs++;
+      }
+   }
+   
+   // 5. Cazas de Liquidez (Equal Highs / Equal Lows Sweeps - SMC.txt)
+   g_smc_liquidity_sweep_buy = false;
+   g_smc_liquidity_sweep_sell = false;
+   if(InpUseLiquiditySweeps && g_last_swing_low > 0 && g_last_swing_high > 0) {
+      double atr = g_atr_cache > 0 ? g_atr_cache : 10 * _Point;
+      // Barrido de Bajos (Sweep EQL): vela 1 perforo el swing low pero cerro por encima
+      if(low1 < g_last_swing_low && close1 >= g_last_swing_low) {
+         g_smc_liquidity_sweep_buy = true;
+      }
+      // Barrido de Altos (Sweep EQH): vela 1 perforo el swing high pero cerro por debajo
+      if(high1 > g_last_swing_high && close1 <= g_last_swing_high) {
+         g_smc_liquidity_sweep_sell = true;
+      }
+   }
+   
+   // 6. Renderizar Cajas Graficas en el Grafico de MT5
+   if(InpDrawSMCVisuals) {
+      int drawn = 0;
+      for(int b = g_total_obs - 1; b >= 0 && drawn < InpMaxSMCBoxes; b--) {
+         color clr = g_order_blocks[b].is_breaker ? InpBreakerColor :
+                     (g_order_blocks[b].is_bullish ? InpBullOBColor : InpBearOBColor);
+         string tip = StringFormat("[%s] %s | Top:%.5f Bot:%.5f",
+                                   (g_order_blocks[b].is_breaker ? "BREAKER" : "ORDERBLOCK"),
+                                   (g_order_blocks[b].is_bullish ? "BULL" : "BEAR"),
+                                   g_order_blocks[b].top, g_order_blocks[b].bottom);
+         DrawSMCBox(g_order_blocks[b].box_name, g_order_blocks[b].time, g_order_blocks[b].top,
+                    now_t, g_order_blocks[b].bottom, clr, tip);
+         drawn++;
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Verificacion de Confluencia en Zona Institucional SMC            |
+//+------------------------------------------------------------------+
+bool IsInSMCInstitutionalZone(string direction, double cur_price, bool &has_ob, bool &has_breaker, bool &has_fvg) {
+   has_ob = false;
+   has_breaker = false;
+   has_fvg = false;
+   if(!InpUseSMCStructures) return true; // Si el motor esta apagado, permitir paso libre
+   
+   double tolerance = 3.0 * _Point;
+   
+   // Evaluar Order Blocks y Breakers
+   for(int b = g_total_obs - 1; b >= 0; b--) {
+      double top = g_order_blocks[b].top + tolerance;
+      double bot = g_order_blocks[b].bottom - tolerance;
+      
+      if(direction == "BUY" && g_order_blocks[b].is_bullish) {
+         if(cur_price >= bot && cur_price <= top) {
+            if(g_order_blocks[b].is_breaker) has_breaker = true;
+            else                             has_ob = true;
+            break;
+         }
+      }
+      else if(direction == "SELL" && !g_order_blocks[b].is_bullish) {
+         if(cur_price >= bot && cur_price <= top) {
+            if(g_order_blocks[b].is_breaker) has_breaker = true;
+            else                             has_ob = true;
+            break;
+         }
+      }
+   }
+   
+   // Evaluar Fair Value Gaps
+   for(int f = g_total_fvgs - 1; f >= 0; f--) {
+      double top = g_fvgs[f].top + tolerance;
+      double bot = g_fvgs[f].bottom - tolerance;
+      if(direction == "BUY" && g_fvgs[f].is_bullish && cur_price >= bot && cur_price <= top) {
+         has_fvg = true;
+         break;
+      }
+      else if(direction == "SELL" && !g_fvgs[f].is_bullish && cur_price >= bot && cur_price <= top) {
+         has_fvg = true;
+         break;
+      }
+   }
+   
+   // Si el usuario exige OB, Breaker o FVG
+   bool ob_valid = (!InpUseOrderBlocks || has_ob || has_breaker);
+   bool fvg_valid = (!InpUseFVGFilter || has_fvg);
+   
+   return (has_ob || has_breaker || has_fvg || g_smc_liquidity_sweep_buy || g_smc_liquidity_sweep_sell);
+}
+
 int OnInit() {
    trade.SetExpertMagicNumber(MAGIC_NUMBER);
    AutoTuneAssets();
@@ -365,6 +706,7 @@ int OnInit() {
       (InpUseMicroTrigger && hMA_Micro == INVALID_HANDLE))
       return(INIT_FAILED);
    UpdateIndicatorCache();
+   UpdateSMCStructures();
    RecoverDailyTradeCount();
    datetime today_start = iTime(_Symbol, PERIOD_D1, 0);
    if(today_start > 0 && HistorySelect(today_start, TimeCurrent())) {
@@ -423,6 +765,7 @@ void OnDeinit(const int reason) {
    IndicatorRelease(hRSI); IndicatorRelease(hADX); IndicatorRelease(hATR);
    if(hMA_Micro != INVALID_HANDLE) IndicatorRelease(hMA_Micro);
    EventKillTimer();
+   CleanSMCVisuals();
    ObjectsDeleteAll(0, "lbl_");
    ObjectsDeleteAll(0, "tp_lvl_");
 }
@@ -565,6 +908,12 @@ bool IsTradingSession(string &session_reason) {
 
    int current_min_of_day = dt_local.hour * 60 + dt_local.min;
 
+   // [V13.80] Filtro de Fin de Semana para Criptomonedas (Evita bull/bear traps en Domingo)
+   if(is_crypto && InpCryptoAvoidWeekendChop && dt_local.day_of_week == 0) {
+      session_reason = "[Domingo Cripto: Evitando Trampas de Fin de Semana]";
+      return false;
+   }
+
    // [V13.00] Filtro de Sesiones de Alta Liquidez CDMX (Londres + NY: 01:15 a 12:00 CDMX)
    // Bloquea sesión asiática nocturna (20:00 - 01:14) y aperturas dominicales en Forex/Oro/Índices
    if(InpUseHighLiquiditySession && (!is_crypto || !InpSessionFilterForexOnly)) {
@@ -659,7 +1008,7 @@ bool IsInDiscountPremiumZone(string type) {
 }
 
 //+------------------------------------------------------------------+
-// [V13.40] Confirmación de Acción del Precio (Vela de Giro y Absorción)
+// [V13.80] Confirmación de Acción del Precio (Vela de Giro y Absorción)
 bool CheckPriceActionConfirmation(string direction, string &pa_reason) {
    pa_reason = "";
    double open1  = iOpen(_Symbol,  _Period, 1);
@@ -669,10 +1018,16 @@ bool CheckPriceActionConfirmation(string direction, string &pa_reason) {
    double total_range = high1 - low1;
    if(total_range <= 0) return true;
 
+   bool is_crypto = (StringFind(_Symbol, "BTC") >= 0 || StringFind(_Symbol, "ETH") >= 0 || StringFind(_Symbol, "BITCOIN") >= 0);
+
    if(direction == "BUY") {
       double lower_wick = MathMin(open1, close1) - low1;
       double wick_ratio = lower_wick / total_range;
       bool is_green_reversal = (close1 > open1);
+      // [V13.80] En Cripto, exigir que la vela verde cierre en la mitad superior del rango para validar demanda real
+      if(is_crypto) {
+         is_green_reversal = (close1 > open1) && (close1 >= (high1 + low1) * 0.5);
+      }
       bool is_absorption_pinbar = (wick_ratio >= 0.30); // 30% o más de mecha inferior compradora
       
       if(!is_green_reversal && !is_absorption_pinbar) {
@@ -685,6 +1040,10 @@ bool CheckPriceActionConfirmation(string direction, string &pa_reason) {
       double upper_wick = high1 - MathMax(open1, close1);
       double wick_ratio = upper_wick / total_range;
       bool is_red_reversal = (close1 < open1);
+      // [V13.80] En Cripto, exigir que la vela roja cierre en la mitad inferior del rango para validar oferta real
+      if(is_crypto) {
+         is_red_reversal = (close1 < open1) && (close1 <= (high1 + low1) * 0.5);
+      }
       bool is_absorption_pinbar = (wick_ratio >= 0.30); // 30% o más de mecha superior vendedora
 
       if(!is_red_reversal && !is_absorption_pinbar) {
@@ -799,7 +1158,7 @@ void DebugSignalMiss(string direction, bool trend, bool in_zone,
 //+------------------------------------------------------------------+
 void OnTick() {
    bool new_bar = IsNewBar();
-   if(new_bar) UpdateIndicatorCache();
+   if(new_bar) { UpdateIndicatorCache(); UpdateSMCStructures(); }
    else        UpdateATRCache();
    CheckAndResetDaily();
    if(CheckDailyDrawdown()) { Comment("\nMAX DRAWDOWN DIARIO ALCANZADO."); return; }
@@ -945,7 +1304,9 @@ void OnTick() {
       if(bar1_range > atr * 2.8) is_news_volatility = true; // Vela de impacto macro anómala
    }
 
-   bool can_buy = (trend_bull || (range_bull && is_trap_buy)) && buy_zone_ok && (rsi < eff_rsi_oversold) && (adx > g_adx_threshold) && !is_spike_buy && !usd_corr_blocked_buy && micro_buy_ok && pa_buy_ok && !is_news_volatility;
+   bool has_ob_buy = false, has_brk_buy = false, has_fvg_buy = false;
+   bool smc_buy_ok = IsInSMCInstitutionalZone("BUY", ask, has_ob_buy, has_brk_buy, has_fvg_buy);
+   bool can_buy = (trend_bull || (range_bull && (is_trap_buy || g_smc_liquidity_sweep_buy))) && buy_zone_ok && (!InpUseSMCStructures || smc_buy_ok || g_smc_liquidity_sweep_buy) && (rsi < eff_rsi_oversold) && (adx > g_adx_threshold) && !is_spike_buy && !usd_corr_blocked_buy && micro_buy_ok && pa_buy_ok && !is_news_volatility;
    if(can_buy) {
       // [V13.50] SL acotado entre mínimo ($10) y techo máximo ($18) para ratios óptimos
       double sl_dist = MathMax(atr * g_atr_multiplier, g_min_sl_price);
@@ -966,7 +1327,9 @@ void OnTick() {
          }
       }
    }
-   bool can_sell = (trend_bear || (range_bear && is_trap_sell)) && sell_zone_ok && (rsi > eff_rsi_overbought) && (adx > g_adx_threshold) && !is_spike_sell && !usd_corr_blocked_sell && micro_sell_ok && pa_sell_ok && !is_news_volatility;
+   bool has_ob_sell = false, has_brk_sell = false, has_fvg_sell = false;
+   bool smc_sell_ok = IsInSMCInstitutionalZone("SELL", bid, has_ob_sell, has_brk_sell, has_fvg_sell);
+   bool can_sell = (trend_bear || (range_bear && (is_trap_sell || g_smc_liquidity_sweep_sell))) && sell_zone_ok && (!InpUseSMCStructures || smc_sell_ok || g_smc_liquidity_sweep_sell) && (rsi > eff_rsi_overbought) && (adx > g_adx_threshold) && !is_spike_sell && !usd_corr_blocked_sell && micro_sell_ok && pa_sell_ok && !is_news_volatility;
    if(can_sell) {
       // [V13.50] SL acotado entre mínimo ($10) y techo máximo ($18)
       double sl_dist = MathMax(atr * g_atr_multiplier, g_min_sl_price);
@@ -1045,8 +1408,8 @@ double GetManualAssetSLDist(string symbol, double &tp_ratio) {
    if(StringFind(sym, "USDJPY") >= 0) return 300 * pt; // 30 pips
    if(StringFind(sym, "GBPUSD") >= 0) return 350 * pt; // 35 pips
    // Cripto
-   if(StringFind(sym, "BTC") >= 0 || StringFind(sym, "BITCOIN") >= 0) return 300.0;
-   if(StringFind(sym, "ETH") >= 0 || StringFind(sym, "ETHEREUM") >= 0) return 25.0;
+   if(StringFind(sym, "BTC") >= 0 || StringFind(sym, "BITCOIN") >= 0) return 500.0;
+   if(StringFind(sym, "ETH") >= 0 || StringFind(sym, "ETHEREUM") >= 0) return 40.0;
    // Indices
    if(StringFind(sym, "US30") >= 0 || StringFind(sym, "WS30") >= 0) return 100.0;
    if(StringFind(sym, "NAS100") >= 0 || StringFind(sym, "USTEC") >= 0) return 50.0;

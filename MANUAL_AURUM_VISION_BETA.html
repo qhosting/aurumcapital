@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦅 AURUM VISION [BETA] — Manual Táctico e Institucional</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.75);
+            --border: rgba(212, 175, 55, 0.25);
+            --gold: #d4af37;
+            --gold-light: #f3e5ab;
+            --gold-glow: rgba(212, 175, 55, 0.15);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --cyan: #00ffd5;
+            --pink: #ff3a8c;
+            --green: #10b981;
+            --red: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            line-height: 1.7;
+            padding: 40px 20px;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(212, 175, 55, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 255, 213, 0.04) 0%, transparent 40%);
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            padding-bottom: 30px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 40px;
+        }
+
+        .badge-beta {
+            display: inline-block;
+            background: linear-gradient(135deg, #d4af37, #aa820a);
+            color: #000;
+            font-weight: 800;
+            font-size: 0.75rem;
+            padding: 4px 14px;
+            border-radius: 999px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: var(--gold-light);
+            text-shadow: 0 0 25px rgba(212, 175, 55, 0.4);
+            margin-bottom: 10px;
+            font-weight: 800;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .meta-bar {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            font-size: 0.85rem;
+            color: var(--gold);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        h2 {
+            font-size: 1.6rem;
+            color: var(--gold);
+            margin-top: 40px;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            color: var(--cyan);
+            margin-top: 25px;
+            margin-bottom: 12px;
+        }
+
+        p {
+            margin-bottom: 16px;
+            color: #e5e7eb;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 0;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-highlight {
+            border-left: 4px solid var(--gold);
+            background: rgba(212, 175, 55, 0.06);
+        }
+
+        .card-danger {
+            border-left: 4px solid var(--red);
+            background: rgba(239, 68, 68, 0.06);
+        }
+
+        .card-success {
+            border-left: 4px solid var(--green);
+            background: rgba(16, 185, 129, 0.06);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            font-size: 0.92rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        th, td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        th {
+            background: rgba(212, 175, 55, 0.12);
+            color: var(--gold-light);
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        code, pre {
+            font-family: 'JetBrains Mono', monospace;
+            background: #050811;
+            color: var(--gold-light);
+            border-radius: 6px;
+        }
+
+        code {
+            padding: 3px 8px;
+            font-size: 0.88em;
+            border: 1px solid rgba(212, 175, 55, 0.2);
+        }
+
+        pre {
+            padding: 18px;
+            margin: 20px 0;
+            overflow-x: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            line-height: 1.5;
+            font-size: 0.88rem;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .pill-win { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
+        .pill-warn { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
+        .pill-loss { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+
+        .checklist {
+            list-style: none;
+            margin: 15px 0;
+        }
+
+        .checklist li {
+            position: relative;
+            padding-left: 32px;
+            margin-bottom: 12px;
+            color: #d1d5db;
+        }
+
+        .checklist li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 20px;
+            height: 20px;
+            background: var(--gold);
+            color: #000;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 900;
+        }
+
+        footer {
+            margin-top: 60px;
+            padding-top: 25px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="badge-beta">Versión BETA Institucional</span>
+            <h1>🦅 AURUM VISION [BETA]</h1>
+            <p class="subtitle">Manual Táctico de Estrategia — Smart Money Concepts (SMC) & Order Blocks</p>
+            <div class="meta-bar">
+                <span>VERSIÓN: V12.0 BETA</span> • 
+                <span>AUDITORÍA: 868 TRADES MT5</span> • 
+                <span>MOTORES: SMC.txt + OB.txt</span>
+            </div>
+        </header>
+
+        <section>
+            <h2>🧠 1. Filosofía Institucional del Francotirador</h2>
+            <div class="card card-highlight">
+                <p><strong>Aurum Vision [BETA]</strong> abandona el trading minorista tradicional de indicadores rezagados para alinearse con la huella que dejan los creadores de mercado (Market Makers) y las instituciones bancarias.</p>
+                <p>Las instituciones mueven volúmenes de miles de millones. No pueden entrar al mercado con una orden simple; necesitan <strong>crear liquidez</strong> engañando al público mediante falsos dobles techos (Equal Highs) y falsas roturas para llenar sus órdenes masivas a precios de <strong>Descuento</strong>.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>🧬 2. Los 6 Pilares Algorítmicos (SMC & OB Engine)</h2>
+            
+            <h3>1. Estructura de Mercado: BOS vs CHoCH</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Concepto</th>
+                        <th>Símbolo</th>
+                        <th>Mecánica Algorítmica</th>
+                        <th>Acción Táctica</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>BOS (Break of Structure)</strong></td>
+                        <td><code>⎯⎯⎯ BOS</code></td>
+                        <td>Vela que cierra superando un Swing High o Swing Low previo a favor de la tendencia.</td>
+                        <td><span class="pill pill-win">Continuación</span> Buscar entrada en retroceso.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>CHoCH (Change of Character)</strong></td>
+                        <td><code>···· CHoCH</code></td>
+                        <td>Ruptura del último mínimo o máximo que generó el impulso.</td>
+                        <td><span class="pill pill-warn">Giro Inminente</span> Primera alerta para buscar reversión.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Strong / Weak Extremes</strong></td>
+                        <td><code>Strong / Weak</code></td>
+                        <td>Un máximo que logró quebrar la estructura es Fuerte; uno que falló es Débil.</td>
+                        <td>El Stop Loss se blinda detrás de niveles Strong.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>2. Bloques de Órdenes (OB) y Breakers (Motor OB.txt)</h3>
+            <div class="card">
+                <p><strong>• Order Block (OB):</strong> La última vela contraria antes de un quiebre estructural expansivo. Al regresar el precio, actúa como soporte o resistencia institucional.</p>
+                <p><strong>• Breaker Block (Inversión de Polaridad):</strong> Si un Order Block de compras es perforado violentamente a la baja por el precio, se transforma en un <strong>Bearish Breaker Block</strong>. Al volver a testearlo por abajo, se convierte en un techo institucional donde ejecutamos ventas.</p>
+            </div>
+
+            <h3>3. Fair Value Gaps (FVG) & Equal Highs/Lows</h3>
+            <p>El mercado no tolera los vacíos de liquidez. Cuando se forma un <strong>Fair Value Gap (FVG)</strong> por un salto de 3 velas, el precio tiende a regresar a rellenar el 50% de ese desequilibrio. La entrada de mayor precisión ocurre cuando un <strong>Order Block coincide con un FVG</strong> (Confluencia Perfecta).</p>
+        </section>
+
+        <section>
+            <h2>📊 3. Validación Estadística sobre 868 Trades Históricos</h2>
+            <div class="card card-success">
+                <p>La auditoría de tus 868 operaciones en MT5 arrojó métricas decisivas para calibrar la versión BETA:</p>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Activo</th>
+                        <th>Trades</th>
+                        <th>Win Rate</th>
+                        <th>Profit Factor</th>
+                        <th>Veredicto Operativo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>EURUSD (Estándar)</strong></td>
+                        <td>17</td>
+                        <td><strong>70.6%</strong></td>
+                        <td><strong>8.06</strong> 🏆</td>
+                        <td><span class="pill pill-win">TITULAR INDISCUTIBLE</span> Mayor eficiencia en Londres.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>USDJPYmicro</strong></td>
+                        <td>46</td>
+                        <td><strong>63.0%</strong></td>
+                        <td><strong>1.76</strong> 🥈</td>
+                        <td><span class="pill pill-win">TITULAR MICRO</span> En M15 alcanza 72.7% WR.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>GOLDmicro</strong></td>
+                        <td>439</td>
+                        <td><strong>49.9%</strong></td>
+                        <td><strong>0.96</strong></td>
+                        <td><span class="pill pill-warn">RENTABLE EN M15</span> 60.7% WR intradía; falla en Swings nocturnos.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>USDJPY (Estándar)</strong></td>
+                        <td>116</td>
+                        <td><strong>25.9%</strong></td>
+                        <td><strong>0.67</strong></td>
+                        <td><span class="pill pill-loss">NO RECOMENDADO</span> Usar únicamente versión micro.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>GBPUSDmicro</strong></td>
+                        <td>37</td>
+                        <td><strong>13.5%</strong></td>
+                        <td><strong>0.10</strong> 🛑</td>
+                        <td><span class="pill pill-loss">PROHIBIDO PARA SCALP</span> Scalping tuvo 0% WR. Solo H1 Swing.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>⏰ 4. Horarios Operativos Inviolables (Killzones CDMX)</h2>
+            <div class="card card-danger">
+                <p><strong>¡ALERTA CRÍTICA!:</strong> El <strong>45.2% de las pérdidas históricas</strong> ocurrieron fuera de horario (sesión asiática y rollover nocturno, donde el spread se multiplica por 4x). El trading queda restringido estrictamente a:</p>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Horario (CDMX)</th>
+                        <th>Sesión</th>
+                        <th>Activos Permitidos</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>01:15 AM - 05:30 AM</strong></td>
+                        <td>London Open Killzone</td>
+                        <td>EURUSD, GBPUSD, USDJPY</td>
+                        <td><span class="pill pill-win">OPERATIVO ALTO</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>06:30 AM - 11:30 AM</strong></td>
+                        <td>NY Overlap (Golden Hour)</td>
+                        <td>GOLDmicro, EURUSD, US30</td>
+                        <td><span class="pill pill-win">OPERATIVO ALTO</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>11:30 AM - 01:15 AM</strong></td>
+                        <td>Zona Muerta / Asia / Rollover</td>
+                        <td>NINGUNO</td>
+                        <td><span class="pill pill-loss">PROHIBIDO ENTRAR</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>🎯 5. Checklist de Francotirador (Paso a Paso)</h2>
+            <div class="card">
+                <ul class="checklist">
+                    <li><strong>Tendencia Macro (H1):</strong> Precio navegando a favor de la EMA 200 y Swing BOS previo en H1.</li>
+                    <li><strong>Zona Institucional:</strong> Precio en <strong>Zona de Descuento (&lt;50%)</strong> para Compras o <strong>Zona Premium (&gt;50%)</strong> para Ventas.</li>
+                    <li><strong>Punto de Reacción:</strong> Contacto con un Orderblock (OB) o Breaker Block no mitigado.</li>
+                    <li><strong>Micro-Gatillo (M15):</strong> Vela de giro o absorción que confirme un CHoCH en temporalidad menor.</li>
+                    <li><strong>Aurum Shield:</strong> Stop Loss colocado por detrás del bloque + Spread. Máximo 3 trades al día. Botón de Algo Trading en verde en MT5.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>🛡️ 6. Aurum Shield: Salidas Escalonadas (Sweet Spot M15)</h2>
+            <pre>
+Entrada ──> +1.0R a +1.3R ──> FASE 1:
+                              ├─ Cerrar 50% del volumen (Beneficio asegurado)
+                              └─ Mover Stop Loss a Break-Even + 1 pip (Riesgo Cero)
+
+          ──> +1.8R a +2.2R ──> FASE 2:
+                              ├─ Cerrar el 40% restante (TP Institucional)
+                              └─ En Oro: Cierre total al término de la sesión NY.
+            </pre>
+        </section>
+
+        <section>
+            <h2>🤖 7. Configuración e Interpretación del Motor SMC en MT5 (V14.0 BETA)</h2>
+            <div class="card card-highlight">
+                <p>El asesor experto <code>AurumSniper</code> y <code>AurumSniperMicro</code> incorpora de forma nativa los motores institucionales de <code>SMC.txt</code> y <code>OB.txt</code>, dibujando las estructuras directamente en tu terminal MT5.</p>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Parámetro (F7)</th>
+                        <th>Valor Sugerido</th>
+                        <th>Función Operativa</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>InpUseSMCStructures</code></td>
+                        <td><code>true</code></td>
+                        <td>Activa el cálculo algorítmico de Swing Pivots, BOS, CHoCH, OBs y Breakers.</td>
+                    </tr>
+                    <tr>
+                        <td><code>InpSwingLength</code></td>
+                        <td><code>5</code></td>
+                        <td>Sensibilidad de detección de Swing Highs y Lows (5 velas según motor VEGA).</td>
+                    </tr>
+                    <tr>
+                        <td><code>InpUseOrderBlocks</code></td>
+                        <td><code>true</code></td>
+                        <td>Exige mitigación activa de un Order Block para validar el disparo de entrada.</td>
+                    </tr>
+                    <tr>
+                        <td><code>InpUseBreakerBlocks</code></td>
+                        <td><code>true</code></td>
+                        <td>Detecta Orderblocks fallidos que invierten polaridad (Soporte &harr; Resistencia).</td>
+                    </tr>
+                    <tr>
+                        <td><code>InpUseFVGFilter</code></td>
+                        <td><code>true</code></td>
+                        <td>Identifica vacíos de liquidez (Fair Value Gaps de 3 velas) como zonas de confluencia.</td>
+                    </tr>
+                    <tr>
+                        <td><code>InpUseLiquiditySweeps</code></td>
+                        <td><code>true</code></td>
+                        <td>Detecta cazas de liquidez en dobles techos y suelos (EQH / EQL Sweeps).</td>
+                    </tr>
+                    <tr>
+                        <td><code>InpDrawSMCVisuals</code></td>
+                        <td><code>true</code></td>
+                        <td>Dibuja las cajas en tiempo real en el gráfico MT5.</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="card">
+                <h3>🎨 Código Visual en el Gráfico MT5:</h3>
+                <p>• <strong>Caja Verde Oscuro / Aqua (<code>smc_ob_</code>):</strong> Bullish Order Block activo (Soporte institucional para compras).</p>
+                <p>• <strong>Caja Roja / Marrón (<code>smc_ob_</code>):</strong> Bearish Order Block activo (Resistencia institucional para ventas).</p>
+                <p>• <strong>Caja Azul Oscuro (<code>smc_brk_</code>):</strong> Breaker Block activo con polaridad invertida.</p>
+            </div>
+        </section>
+
+        <footer>
+            <p><strong>Aurum Capital Algorithmic Trading Systems</strong> — Confidencial para uso interno.</p>
+        </footer>
+    </div>
+</body>
+</html>
